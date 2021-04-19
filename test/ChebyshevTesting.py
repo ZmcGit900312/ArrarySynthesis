@@ -38,22 +38,31 @@ class ChebyshevTestCase(unittest.TestCase):
     def test_sample(self):
         sidelobe = 30
         scan = np.array([np.pi / 3, np.pi / 3])
-        omega = np.array([5, 5]) / 180 * np.pi
-        number = np.array([50, 50], dtype=int)
+        omega = np.array([2.5, 2.5]) / 180 * np.pi
+        number = np.array([30, 30], dtype=int)
 
         theta = np.arange(30, 150, 1)
         phi = np.arange(-60, 60, 1)
 
         cbs_sample = ChebyshevPlaneSyn(sidelobe, scan, omega)
-        cbs_sample.syntheis(number)
+        cbs_sample.synthesis()
         cbs_sample.show()
 
-        AF = cbs_sample.array_factor(theta * np.pi / 180, phi * np.pi / 180)
+        theta_degree = theta * np.pi / 180
+        phi_degree = phi * np.pi / 180
+
+        AF = cbs_sample.array_factor(theta_degree, phi_degree)
         AF_abs = np.abs(AF)
         AFnormal = 20 * np.log10(AF_abs / np.max(AF_abs))
 
         size = cbs_sample.get_size()
-        surface_3D(theta, phi, AFnormal, str(size[0]) + "*" + str(size[1]) + " Array Factor")
+
+        gain = np.round(10 * np.log10(cbs_sample.direct), 2)
+
+        picture_title = str(size[0]) + "*" + str(size[1]) + " Array Factor" + "(Gain: " \
+                        + str(gain) + "dB )"
+
+        surface_3D(theta, phi, AFnormal, picture_title)
 
 
 if __name__ == '__main__':
