@@ -39,14 +39,13 @@ class ChebyshevTestCase(unittest.TestCase):
         sidelobe = 30
         scan = np.array([np.pi / 3, np.pi / 3])
         omega = np.array([3, 3]) / 180 * np.pi
-        number = np.array([39, 39], dtype=int)
+        number = np.array([1, 1], dtype=int)
 
         theta = np.arange(30, 150, 1)
         phi = np.arange(-60, 60, 1)
 
-        cbs_sample = ChebyshevPlaneSyn(sidelobe, scan, omega)
-        cbs_sample.synthesis(number)
-        # cbs_sample.synthesis()
+        cbs_sample = ChebyshevPlaneSyn(sidelobe, scan, omega, number, True)
+        cbs_sample.synthesis()
         cbs_sample.show()
 
         theta_degree = theta * np.pi / 180
@@ -69,19 +68,19 @@ class ChebyshevTestCase(unittest.TestCase):
         sidelobe = 30
         scan = np.array([np.pi / 3, np.pi / 3])
         omega = np.array([3, 3]) / 180 * np.pi
-        number = np.array([39, 39], dtype=int)
+        number = np.array([1, 1], dtype=int)
 
         theta = np.arange(30, 150, 1)
         phi = np.arange(-60, 60, 1)
 
-        cbs_sample = ChebyshevPlaneSyn(sidelobe, scan, omega)
-        cbs_sample.undepart_synthesis()
+        cbs_sample = ChebyshevPlaneSyn(sidelobe, scan, omega, number)
+        cbs_sample.synthesis()
         cbs_sample.show()
 
         theta_degree = theta * np.pi / 180
         phi_degree = phi * np.pi / 180
 
-        AF = cbs_sample.undepart_array_factor(theta_degree, phi_degree)
+        AF = cbs_sample.array_factor(theta_degree, phi_degree)
         AF_abs = np.abs(AF)
         AFnormal = 20 * np.log10(AF_abs / np.max(AF_abs))
 

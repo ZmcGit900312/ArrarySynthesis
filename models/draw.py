@@ -25,12 +25,14 @@ def surface_3D(x_scope, y_scope, z_value, title="3D_surface"):
     X, Y = np.meshgrid(x_scope, y_scope)
 
     surf = ax.plot_surface(X, Y, Z=z_value, cmap='coolwarm')
-    ax.contour(X, Y, z_value, zdir='z', offset=10, cmap="coolwarm")  # 生成z方向投影，投到x-y平面
+    ax.contour(X, Y, z_value, zdir='z', offset=20, cmap="coolwarm")  # 生成z方向投影，投到x-y平面
 
     ax.set_title(title)
     ax.set_xlabel('Theta(degree)')
     ax.set_ylabel('Phi(degree)')
     ax.set_zlabel('dB')
+
+    ax.set_zlim([-60, 0])
 
     fcb = fig.colorbar(surf, shrink=0.8, pad=0.1)
 
