@@ -35,17 +35,18 @@ class ChebyshevTestCase(unittest.TestCase):
         chebyshevMatrix = np.load("chebyshevCoeficientsMatrix100.npy")
         print(chebyshevMatrix.shape)
 
-    def test_sample(self):
+    def test_chebyshev_sample(self):
         sidelobe = 30
         scan = np.array([np.pi / 3, np.pi / 3])
-        omega = np.array([2.5, 2.5]) / 180 * np.pi
-        number = np.array([30, 30], dtype=int)
+        omega = np.array([3, 3]) / 180 * np.pi
+        number = np.array([39, 39], dtype=int)
 
         theta = np.arange(30, 150, 1)
         phi = np.arange(-60, 60, 1)
 
         cbs_sample = ChebyshevPlaneSyn(sidelobe, scan, omega)
-        cbs_sample.synthesis()
+        cbs_sample.synthesis(number)
+        # cbs_sample.synthesis()
         cbs_sample.show()
 
         theta_degree = theta * np.pi / 180
@@ -60,6 +61,35 @@ class ChebyshevTestCase(unittest.TestCase):
         gain = np.round(10 * np.log10(cbs_sample.direct), 2)
 
         picture_title = str(size[0]) + "*" + str(size[1]) + " Array Factor" + "(Gain: " \
+                        + str(gain) + "dB )"
+
+        surface_3D(theta, phi, AFnormal, picture_title)
+
+    def test_chebyshev_sample_undepart(self):
+        sidelobe = 30
+        scan = np.array([np.pi / 3, np.pi / 3])
+        omega = np.array([3, 3]) / 180 * np.pi
+        number = np.array([39, 39], dtype=int)
+
+        theta = np.arange(30, 150, 1)
+        phi = np.arange(-60, 60, 1)
+
+        cbs_sample = ChebyshevPlaneSyn(sidelobe, scan, omega)
+        cbs_sample.undepart_synthesis()
+        cbs_sample.show()
+
+        theta_degree = theta * np.pi / 180
+        phi_degree = phi * np.pi / 180
+
+        AF = cbs_sample.undepart_array_factor(theta_degree, phi_degree)
+        AF_abs = np.abs(AF)
+        AFnormal = 20 * np.log10(AF_abs / np.max(AF_abs))
+
+        size = cbs_sample.get_size()
+
+        gain = np.round(10 * np.log10(cbs_sample.direct), 2)
+
+        picture_title = str(size[0]) + "*" + str(size[0]) + " Array Factor" + "(Gain: " \
                         + str(gain) + "dB )"
 
         surface_3D(theta, phi, AFnormal, picture_title)

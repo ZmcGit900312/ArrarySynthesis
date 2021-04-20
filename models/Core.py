@@ -10,6 +10,8 @@ from enum import Enum
 
 import numpy as np
 
+from models.draw import surface_3D
+
 
 class Source(Enum):
     Equiv = 1
@@ -53,7 +55,7 @@ class ChebyshevPlaneSyn:
                     coef = x0 ** (2 * q - 2) * (-1) ** (M - q + 1)
                     temp = temp + term * coef
                 current[zmc] = (2 * M - 1) * temp
-            current[0] = 2 * current[0]
+            current[0] = current[0] / 2
         else:
             current = np.zeros(M, dtype=float)
             for zmc in range(M):
@@ -97,10 +99,40 @@ class ChebyshevPlaneSyn:
         Mu = int(self.numberUV[0] / 2.)
         Mv = int(self.numberUV[1] / 2.)
 
-        current_u = np.reshape(self.__baberier__(self.x0[0], Mu, odd=self.oddU), (Mu, 1))
-        current_v = np.reshape(self.__baberier__(self.x0[1], Mv, odd=self.oddV), (1, Mv))
+        self.current = np.einsum("m,n->mn",
+                                 self.__baberier__(self.x0[0], Mu, odd=self.oddU),
+                                 self.__baberier__(self.x0[1], Mv, odd=self.oddV))
 
-        self.current = np.matmul(current_u, current_v)
+    def undepart_synthesis(self):
+        """
+        synthesis for undepart array
+        :return:
+        """
+
+        n = self.numberUV[0]
+        m = int(n / 2)
+        w0 = np.cosh(np.arccosh(self.R0) / (n - 1))
+        pq = np.arange(1, m + 1, 1)
+
+        cheby_coef = np.zeros(n, dtype=float)
+        cheby_coef[-1] = 1
+
+        odd = self.oddU
+
+        # odd or even
+        val = 1 if odd else 0.5
+        val2 = 2 if odd else 1
+        val_current_coef = 4.0 if odd else 1
+
+        cos_base = np.cos((pq - val) * np.pi / n)
+        x0 = w0 * np.einsum("i,j->ij", cos_base, cos_base)
+        cheby_value = np.polynomial.chebyshev.chebval(x0, cheby_coef)
+        zmc = np.arange(1, m + val2, 1)
+        cos_inner = np.cos(np.einsum("i,j->ij", (zmc - val), (pq - val)) * 2 * np.pi / n)
+        current = (4 / n) ** 2 * np.einsum("mp,nq,pq->mn", cos_inner, cos_inner, cheby_value)
+        current[0, 0] = current[0, 0] / val_current_coef
+
+        self.current = current / np.max(current)
 
     def get_current(self):
         """
@@ -121,25 +153,56 @@ class ChebyshevPlaneSyn:
         k = 2 * np.pi
         nu = int(self.numberUV[0] / 2.)
         nv = int(self.numberUV[1] / 2.)
-        AF = np.zeros([len(theta_scope), len(phi_scope)], dtype=np.complex128)
         du = self.interval[0]
         dv = self.interval[1]
 
-        temp_nu = np.broadcast_to(np.arange(nu), (nu, nu))
-        temp_nv = np.broadcast_to(np.arange(nv), (nv, nv)).T
+        u = 0.5 * k * du * np.cos(theta_scope)
+        v = 0.5 * k * dv * np.einsum("p,t->pt", np.sin(phi_scope), np.sin(theta_scope))
 
-        for zmcT in np.arange(theta_scope.shape[0]):
-            theta = theta_scope[zmcT]
-            for zmcP in np.arange(phi_scope.shape[0]):
-                phi = phi_scope[zmcP]
-                # wave_diff = (temp_nu*du*np.cos(phi)+temp_nv*dv*np.sin(phi))*np.sin(theta)
-                # To Draw yz plane
-                wave_diff = temp_nu * du * np.cos(theta) + temp_nv * dv * np.sin(phi) * np.sin(theta)
-                phase = np.exp(1j * k * wave_diff)
-                temp = self.current * phase
-                AF[zmcP, zmcT] = np.einsum('ij->', temp)
+        if self.oddU:
+            mm = 2 * np.arange(1, nu + 2, 1) - 2
+        else:
+            mm = 2 * np.arange(1, nu + 1, 1) - 1
+
+        cos_mu = np.cos(np.einsum("t,m->tm", u, mm))
+
+        if self.oddV:
+            nn = 2 * np.arange(1, nv + 2, 1) - 2
+        else:
+            nn = 2 * np.arange(1, nv + 1, 1) - 1
+
+        cos_mv = np.cos(np.einsum("pt,k->ptk", v, nn))
+
+        AF = np.einsum("ptn,tm,mn->pt", cos_mv, cos_mu, self.current)
 
         return 4 * AF
+
+    def undepart_array_factor(self, theta_scope, phi_scope):
+        """
+        calculate the undepart array factor
+        :param theta_scope:
+        :param phi_scope:
+        :return: array factor
+        """
+        odd = self.oddU
+
+        M = self.current.shape[0] - (1 if odd else 0)
+        k = 2 * np.pi
+        du = self.interval[0]
+        dv = self.interval[1]
+
+        zmc = 2 * np.arange(1, M + (2 if odd else 1)) - 1
+        local_current = self.current
+        local_current[0, 0] = self.current[0, 0] / (4. if odd else 1.)
+
+        u = 0.5 * k * du * np.cos(theta_scope)
+        v = 0.5 * k * dv * np.einsum("i,j->ij", np.sin(phi_scope), np.sin(theta_scope))
+
+        cos_mu = np.cos(np.einsum("i,j->ij", u, zmc))
+        cos_mv = np.cos(np.einsum("ij,k->ijk", v, zmc))
+        AF = 4 * np.einsum("ptn,tm,mn->pt", cos_mv, cos_mu, local_current)
+
+        return AF
 
     def show(self):
         Num = self.get_size()
@@ -165,6 +228,71 @@ class ChebyshevPlaneSyn:
     numberUV = None
     oddU = True
     oddV = True
+    depart_flag = False
+
+
+def chebyshev_depart():
+    """
+    calculate the current of the depart Chebyshev array
+    :return:
+    """
+
+    R0 = 10 ** (20 / 20.0)
+    N = 10
+    M = int(N / 2)
+    w0 = np.cosh(np.arccosh(R0) / (N - 1))
+    pq = np.arange(1, M + 1, 1)
+
+    cheby_coef = np.zeros(N, dtype=float)
+    cheby_coef[-1] = 1
+
+    odd = False
+
+    # odd or even
+    val = 1 if odd else 0.5
+    val2 = 2 if odd else 1
+    val_current_coef = 4.0 if odd else 1
+
+    cos_base = np.cos((pq - val) * np.pi / N)
+    x_odd = w0 * np.einsum("i,j->ij", cos_base, cos_base)
+    cheby_value = np.polynomial.chebyshev.chebval(x_odd, cheby_coef)
+    zmc = np.arange(1, M + val2, 1)
+    cos_inner = np.cos(np.einsum("i,j->ij", (zmc - val), (pq - val)) * 2 * np.pi / N)
+    current = (4 / N) ** 2 * np.einsum("mp,nq,pq->mn", cos_inner, cos_inner, cheby_value)
+    current[0, 0] = current[0, 0] / val_current_coef
+
+    current = current / np.max(current)
+
+    return current
+
+
+def chebyshev_arrray_factor(current, theta_scope, phi_scope):
+    """
+    unDepartment Array
+    :param current:
+    :param theta_scope:
+    :param phi_scope:
+    :return:
+    """
+
+    odd = False
+
+    M = current.shape[0] - (1 if odd else 0)
+    k = 2 * np.pi
+    du = 0.5
+    dv = 0.75
+
+    zmc = 2 * np.arange(1, M + (2 if odd else 1)) - 1
+    current[0, 0] = current[0, 0] / (4. if odd else 1.)
+
+    u = 0.5 * k * du * np.cos(theta_scope)
+    v = 0.5 * k * dv * np.einsum("i,j->ij", np.sin(phi_scope), np.sin(theta_scope))
+
+    cos_mu = np.cos(np.einsum("i,j->ij", u, zmc))
+    cos_mv = np.cos(np.einsum("ij,k->ijk", v, zmc))
+    AF = 4 * np.einsum("ptn,tm,mn->pt", cos_mv, cos_mu, current)
+
+    return AF
 
 
 if __name__ == '__main__':
@@ -172,6 +300,18 @@ if __name__ == '__main__':
     scan = np.array([np.pi / 3, np.pi / 3])
     omega = np.array([5, 5]) / 180 * np.pi
     number = np.array([70, 70], dtype=int)
+
+    res_current = chebyshev_depart()
+    print(res_current.shape)
+
+    theta = np.arange(30, 150, 1)
+    phi = np.arange(-60, 60, 1)
+
+    array_factor = chebyshev_arrray_factor(res_current, theta * np.pi / 180, phi * np.pi / 180)
+    af_abs = np.abs(array_factor)
+    af_normal = 20 * np.log10(af_abs / np.max(af_abs))
+
+    surface_3D(theta, phi, af_normal, )
 
     # test = ChebyshevPlaneSyn(sidelobe, scan, omega)
     # info = test.ParseIndex(number)
