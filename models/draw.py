@@ -32,7 +32,7 @@ def surface_3D(x_scope, y_scope, z_value, title="3D_surface"):
     ax.set_ylabel('Phi(degree)')
     ax.set_zlabel('dB')
 
-    ax.set_zlim([-60, 0])
+    # ax.set_zlim([-60, 0])
 
     fcb = fig.colorbar(surf, shrink=0.8, pad=0.1)
 
