@@ -5,6 +5,30 @@ import numpy as np
 
 
 class MatplotlibTestCase(unittest.TestCase):
+    cmaps = [('Perceptually Uniform Sequential', [
+        'viridis', 'plasma', 'inferno', 'magma', 'cividis']),
+             ('Sequential', [
+                 'Greys', 'Purples', 'Blues', 'Greens', 'Oranges', 'Reds',
+                 'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu',
+                 'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']),
+             ('Sequential (2)', [
+                 'binary', 'gist_yarg', 'gist_gray', 'gray', 'bone', 'pink',
+                 'spring', 'summer', 'autumn', 'winter', 'cool', 'Wistia',
+                 'hot', 'afmhot', 'gist_heat', 'copper']),
+             ('Diverging', [
+                 'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu',
+                 'RdYlBu', 'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic']),
+             ('Cyclic', ['twilight', 'twilight_shifted', 'hsv']),
+             ('Qualitative', [
+                 'Pastel1', 'Pastel2', 'Paired', 'Accent',
+                 'Dark2', 'Set1', 'Set2', 'Set3',
+                 'tab10', 'tab20', 'tab20b', 'tab20c']),
+             ('Miscellaneous', [
+                 'flag', 'prism', 'ocean', 'gist_earth', 'terrain', 'gist_stern',
+                 'gnuplot', 'gnuplot2', 'CMRmap', 'cubehelix', 'brg',
+                 'gist_rainbow', 'rainbow', 'jet', 'turbo', 'nipy_spectral',
+                 'gist_ncar'])]
+
     def test_simple_example(self):
         fig, axs = plt.subplots(1, 2)
         axs[0].plot([1, 2, 3, 4], [1, 4, 2, 3])
@@ -79,7 +103,7 @@ class MatplotlibTestCase(unittest.TestCase):
         ax.set_title(r'A line plot on a polar axis with $(\theta, \rho)$')
         plt.show()
 
-    def test_zoom_plot(self):
+    def test_zoom_figure(self):
         delta = 0.001
         x = y = np.arange(-3., 3., delta)
         extent = [-3, 3, -3, 3]
@@ -107,6 +131,102 @@ class MatplotlibTestCase(unittest.TestCase):
         ax.indicate_inset_zoom(axins, edgecolor="black")
 
         plt.show()
+
+    def test_contour_figure(self):
+
+        generate_data = lambda x, y: (1 - x / 2 + x ** 5 + y ** 3) * np.exp(-x ** 2 - y ** 2)
+
+        number = 1024
+        x = np.linspace(-3, 3, number)
+        y = np.linspace(-3, 3, number)
+
+        X, Y = np.meshgrid(x, y)
+
+        fig = plt.figure(num=1, figsize=(8, 6), dpi=100)
+
+        ax = fig.add_subplot(111)
+        # Draw picture
+        ax.contourf(X, Y, generate_data(X, Y), 15, alpha=0.75, cmap='hot')
+        # Draw line. Here value 8 is the gradient of height
+        C = ax.contour(X, Y, generate_data(X, Y), 15, colors='black', linewidth=.5)
+
+        ax.clabel(C, inline=True, fontsize=10)
+
+        ax.set_xticks(())
+        ax.set_yticks(())
+
+        plt.show()
+
+    def test_colormap_reference(self):
+        gradient = np.linspace(0, 1, 256)
+        gradient = np.vstack((gradient, gradient))
+
+        for cmap_category, cmap_list in self.cmaps:
+            nrows = len(self.cmaps)
+            figh = 0.35 + 0.15 + (nrows + (nrows - 1) * 0.1) * 0.22
+            fig, axs = plt.subplots(nrows=nrows, figsize=(6.4, figh))
+            fig.subplots_adjust(top=1 - .35 / figh, bottom=.15 / figh, left=0.2, right=0.99)
+
+            axs[0].set_title(cmap_category + ' colormaps', fontsize=14)
+
+            for ax, name in zip(axs, cmap_list):
+                ax.imshow(gradient, aspect='auto', cmap=plt.get_cmap(name))
+                ax.text(-.01, .5, name, va='center', ha='right', fontsize=10, transform=ax.transAxes)
+
+            for ax in axs:
+                ax.set_axis_off()
+
+        plt.show()
+
+    def test_mask_plot(self):
+        phi = np.linspace(0, 2 * np.pi, 360 * 4)
+        radius = 8
+        interval = 0.5
+        number = 33
+
+        # array mask
+
+        half = int(number / 2)
+        mask_line = np.arange(-half, half + 1, 1) * interval
+        temp_mask = np.einsum("i,j->ij", np.ones([2 * half + 1], dtype=float), mask_line * mask_line)
+        dis_mask = temp_mask + temp_mask.T - radius * radius
+
+        array_mask = np.array(np.where(dis_mask > 0, 0, 1), dtype=np.int8)
+
+        idx, idy = np.where(array_mask == 1)
+
+        # draw
+        fig = plt.figure(num=1, figsize=(6, 6), dpi=200)
+
+        ax = fig.add_subplot(111)
+
+        circle = ax.fill(radius * np.cos(phi), radius * np.sin(phi), color='lightblue', zorder=0)
+        elements = ax.scatter(x=mask_line[idx], y=mask_line[idy], s=50, c='gray', zorder=1)
+
+        # Arrow
+        arrow_width = 0.03
+        arrow_head_width = 0.3
+        arrow_head_length = 0.5
+        fontsize = 15
+
+        ax.arrow(x=0, y=0, dx=radius - 0.5, dy=0,
+                 width=arrow_width, head_width=arrow_head_width, head_length=arrow_head_length, color='k')
+        ax.text(x=radius / 2, y=0.3, s="r", size=fontsize, family='times new roman', style='italic')
+
+        # ax.annotate(text=str(radius*2)+r'$\lambda$',
+        #             xy=(-radius, 0),
+        #             xytext=(radius, 0),
+        #             arrowprops=dict(arrowstyle='<->'))
+
+        ax.set_aspect('equal', 'box')
+        ax.set_axis_off()
+        ax.grid(True)
+
+        ax.set_title("Mask of Array with " + str(len(idx)) + " elements", fontsize=20, family='times new roman')
+
+        plt.show()
+
+
 
 
 if __name__ == '__main__':
