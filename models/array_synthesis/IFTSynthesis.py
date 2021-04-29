@@ -5,11 +5,10 @@
 # FileName : IFTSynthesis
 # Cooperation : 265
 
-import time
 from enum import Enum
 
 import numpy as np
-from numpy.fft import ifft2, ifftshift
+from numpy.fft import ifft2, ifftshift, fft2
 from progress_bar import InitBar
 
 
@@ -21,7 +20,7 @@ class ArrayShape(Enum):
 
 class IFTSynthesis:
     def __init__(self, sidelobe, interval, aperture, array_shape=ArrayShape.circle):
-        self.sidelobe = sidelobe
+        self.sidelobe = -np.abs(sidelobe)
         self.array_shape = array_shape
         self.aperture = aperture
         self.numberUV = np.array(np.ceil(self.aperture / interval), dtype=np.int32) + 1
@@ -41,24 +40,45 @@ class IFTSynthesis:
         synthesis
         """
         number_FFT = np.array([self.numFFT, self.numFFT], dtype=np.int0)
+        INF = np.inf * np.ones([self.numFFT, 1])
+        min_current = 10 ** (-np.abs(self.excitation_ratio) / 20.)
         m = 0
         print("执行阵列综合开始，祈祷不报错".center(25, "-"))
 
         for trial in np.arange(1, self.max_trial + 1):
             msg_1 = "随机生成阵列激励第" + str(trial) + "次"
             # initial current space
-            self.current = np.array(self.array_mask, dtype=float)
+            self.current = np.random.random(size=self.numberUV) * self.array_mask
             # time bar
             pbar = InitBar(title=msg_1)
             for iteration in np.arange(1, self.max_iteration + 1):
-                # Project
-                m = m + 1
+                # Normalized the AF
                 af_space = ifftshift(ifft2(self.current, number_FFT))
                 af_abs = np.abs(af_space)
-                max_index = np.unravel_index(af_abs.argmax(), af_abs.shape)
+                max_ind = np.unravel_index(af_abs.argmax(), af_abs.shape)
                 maxAF = af_abs.max()
+                af_abs = af_abs / maxAF
+                af_space = af_space / maxAF
 
-                time.sleep(0.1)
+                # Find all FF nulls
+                min_val = np.sign(np.diff(np.hstack([INF, af_abs, INF])))
+                min_ind = np.where(np.diff(min_val + (min_val == 0)) == 2)
+
+                # Find all FF peaks
+                peak_ind = np.diff(min_val) < 0
+                indP = np.argsort(af_abs[peak_ind])[::-1]
+
+                # Find indices all SLL directions
+
+                # Adapt AF to SLL constrains
+
+                current = fft2(ifftshift(af_space))
+                # Truncate current
+                self.current = abs(current[0:self.numberUV[0], 0:self.numberUV[1]]) * self.array_mask
+                self.current = self.current / np.max(self.current)
+                select = self.current > 0
+                self.current[self.current(select) < min_current] = min_current
+
                 pbar(iteration / self.max_iteration * 100)
 
             del pbar
@@ -69,9 +89,6 @@ class IFTSynthesis:
         pass
 
     def show(self):
-        pass
-
-    def wrirte(self, filename: str):
         pass
 
     def __generate_mask__(self):
@@ -125,5 +142,6 @@ if __name__ == '__main__':
     aperture = np.array([8, 8], dtype=float)
 
     sample = IFTSynthesis(sidelobe, interval, aperture)
-    sample.synthesis()
+    # sample.synthesis()
+
     pass
