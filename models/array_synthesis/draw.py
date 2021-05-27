@@ -66,7 +66,7 @@ def IFT_MaskArray(radius, number, interval, ax):
 
     # draw
     circle = ax.fill(radius * np.cos(phi), radius * np.sin(phi), color='lightblue', zorder=0)
-    elements = ax.scatter(x=mask_line[idx], y=mask_line[idy], s=20, c='gray', zorder=1)
+    elements = ax.scatter(x=mask_line[idx], y=mask_line[idy], s=10, c='gray', zorder=1)
 
     # Arrow
     arrow_width = 0.03

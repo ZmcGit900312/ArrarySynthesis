@@ -10,6 +10,7 @@ from enum import Enum
 import numpy as np
 from numpy.fft import ifft2, ifftshift, fft2
 from progress_bar import InitBar
+from scipy import integrate as si
 
 
 # shape enumerate
@@ -85,11 +86,34 @@ class IFTSynthesis:
 
         print("执行结束，万幸".center(25, "-"))
 
-    def array_factor(self):
-        pass
+    def array_factor(self, theta_scope, phi_scope):
+        k = 2 * np.pi
+        du = self.interval[0]
+        dv = self.interval[1]
+
+        zmc = np.arange(0, self.current.shape[0])
+        local_current = np.copy(self.current)
+
+        u = 0.5 * k * du * np.cos(theta_scope)
+        v = 0.5 * k * dv * np.einsum("i,j->ij", np.sin(phi_scope), np.sin(theta_scope))
+
+        cos_mu = np.cos(np.einsum("i,j->ij", u, zmc))
+        cos_mv = np.cos(np.einsum("ij,k->ijk", v, zmc))
+        AF = np.einsum("ptn,tm,mn->pt", cos_mv, cos_mu, local_current)
+
+        power, error = si.dblquad(self.__direct__, 0, np.pi / 2, 0, 2 * np.pi)
+
+        mainAF = np.max(np.abs(AF))
+
+        self.max_gain = 4 * np.pi * mainAF * mainAF / power
+        return AF
 
     def show(self):
-        pass
+        print("Interval : " + "U: " + str(np.round(self.interval[0], 2)) + "\tV: " + str(np.round(self.interval[1], 2)))
+        print("ArraySize: " + str(self.numberUV[0]) + "*" + str(self.numberUV[1]))
+        print("Radius: " + str(self.aperture[0]) + " lambda")
+        print("Gain: " + str(10 * np.log10(self.max_gain)) + " dB")
+        print("Total Number: " + str(self.total_number))
 
     def __generate_mask__(self):
         """
@@ -103,11 +127,34 @@ class IFTSynthesis:
             temp_mask = np.einsum("i,j->ij", np.ones([self.numberUV[0]], dtype=float), mask_line * mask_line)
             dis_mask = temp_mask + temp_mask.T - self.aperture[0] * self.aperture[0] / 4.
 
-            self.array_mask = np.array(np.where(dis_mask > 0, 0, 1), dtype=np.int8)
+            self.array_mask = np.array(np.where(dis_mask > 0, 0, 1), dtype=np.int0)
+            self.total_number = np.einsum("ij->", self.array_mask)
             self.current = np.array(self.array_mask, dtype=float)
         else:
             self.array_mask = np.ones(self.numberUV, dtype=np.int8)
             self.current = np.array(self.array_mask, dtype=float)
+
+    def __direct__(self, phi, theta):
+        """
+        \int_{0}^{2\pi}{d\phi} \int_{0}^{\pi/2}{d\theta} |S(\theta, \phi)|^2 \sin\theta
+        :param phi:
+        :param theta:
+        :return: denomator of D
+        """
+
+        k = 2 * np.pi
+        du = self.interval[0]
+        dv = self.interval[1]
+
+        zmc = np.arange(0, self.current.shape[0])
+
+        u = 0.5 * k * du * np.sin(theta) * np.cos(phi)
+        v = 0.5 * k * dv * np.sin(theta) * np.sin(phi)
+        cos_mu = np.cos(u * zmc)
+        cos_mv = np.cos(v * zmc)
+
+        temp_res = np.einsum("ij,i,j->", self.current, cos_mu, cos_mv)
+        return np.sin(theta) * temp_res * temp_res
 
     # antenna parameter
     array_shape = ArrayShape.circle
@@ -117,6 +164,8 @@ class IFTSynthesis:
     gradlobeinterval = np.array([0.5, 0.5], dtype=float)
     numberUV = np.array([1, 1], dtype=int)
     interval = np.array([0.5, 0.5], dtype=float)
+    max_gain = 1
+    total_number = 1
 
     direct = 1
 
@@ -142,6 +191,10 @@ if __name__ == '__main__':
     aperture = np.array([8, 8], dtype=float)
 
     sample = IFTSynthesis(sidelobe, interval, aperture)
-    # sample.synthesis()
 
-    pass
+    theta = np.arange(30, 150, 1)
+    phi = np.arange(-60, 60, 1)
+    AF = sample.array_factor(theta * np.pi / 180, phi * np.pi / 180)
+
+    sample.show()
+    # sample.synthesis()

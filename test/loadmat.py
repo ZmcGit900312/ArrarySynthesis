@@ -6,6 +6,7 @@ from scipy.io import loadmat
 from scipy.signal import convolve2d
 
 import models.array_synthesis.draw as dw
+from models.array_synthesis.IFTSynthesis import IFTSynthesis as IFT
 
 
 class LoadMatTestCase(unittest.TestCase):
@@ -35,7 +36,7 @@ class LoadMatTestCase(unittest.TestCase):
 
     def test_circular_kernel(self):
         # 8 circular kernels (kernel is inversed in fact)
-        picture_size = 256
+        picture_size = 1024
 
         window = np.zeros([8, 3, 3], dtype=int)
         window[:, 1, 1] = 1
@@ -105,7 +106,25 @@ class LoadMatTestCase(unittest.TestCase):
 
         print("max and min: " + str(np.max(picture)) + "\t" + str(np.min(picture)))
 
-        pass
+    def test_circular_equal_exciation(self):
+        sidelobe = 30
+        scan = np.array([np.pi / 3, np.pi / 3])
+        omega = np.array([3, 3]) / 180 * np.pi
+        interval = np.array([0.45, 0.45], dtype=float)
+        aperture = np.array([20, 20], dtype=float)
+
+        sample = IFT(sidelobe, interval, aperture)
+
+        theta = np.arange(30, 150, 1)
+        phi = np.arange(-60, 60, 1)
+        AF = sample.array_factor(theta * np.pi / 180, phi * np.pi / 180)
+
+        AF_abs = np.abs(AF)
+        AFnormal = 20 * np.log10(AF_abs / np.max(AF_abs))
+
+        sample.show()
+        picture_title = "(Gain: " + str(np.round(10 * np.log10(sample.max_gain), 2)) + " dB )"
+        dw.surface_3D(theta, phi, AFnormal, picture_title)
 
 
 def generate_test_picture(num=1024):
