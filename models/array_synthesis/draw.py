@@ -7,6 +7,7 @@
 
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.patches import Circle
 
 
 def surface_3D(x_scope, y_scope, z_value, title="3D_surface"):
@@ -39,6 +40,44 @@ def surface_3D(x_scope, y_scope, z_value, title="3D_surface"):
     plt.show()
 
     return fig
+
+
+def Circular_Distribution(physical_aperture, physical_number, physical_interval, ax):
+    # array mask
+
+    half = int(physical_number / 2)
+
+    radius = physical_aperture / 2
+    element_radius = physical_interval * 0.9 / 2
+
+    mask_line = np.arange(-half, half + 1, 1) * physical_interval
+    temp_mask = np.einsum("i,j->ij", np.ones([2 * half + 1], dtype=float), mask_line * mask_line)
+    dis_mask = temp_mask + temp_mask.T - radius * radius
+
+    array_mask = np.array(np.where(dis_mask > 0, 0, 1), dtype=np.int8)
+
+    idx, idy = np.where(array_mask == 1)
+
+    # draw
+    circle = Circle((0, 0), radius=radius, facecolor='lightblue', linewidth=1, alpha=1)
+    ax.add_patch(circle)
+
+    # Draw element
+
+    for zmc in np.arange(idx.size):
+        element_circle = Circle((mask_line[idx[zmc]], mask_line[idy[zmc]]), radius=element_radius, facecolor='gray',
+                                linewidth=1, alpha=1)
+        ax.add_patch(element_circle)
+
+    ax.set_xlim([-radius * 1.1, radius * 1.1])
+    ax.set_ylim([-radius * 1.1, radius * 1.1])
+
+    ax.set_aspect('equal', 'box')
+    ax.set_axis_off()
+    ax.grid(True)
+
+    ax.set_title(str(physical_aperture) + " (mm) circular aperture array " + str(len(idx)) + " elements", fontsize=6,
+                 family='times new roman')
 
 
 def IFT_MaskArray(radius, number, interval, ax):
@@ -84,6 +123,39 @@ def IFT_MaskArray(radius, number, interval, ax):
     ax.grid(True)
 
     ax.set_title("Mask of Array with " + str(len(idx)) + " elements", fontsize=fontsize, family='times new roman')
+
+    return ax
+
+
+def IFT_LoopMaskArray(aperture, loop_number, loop_radius, ax, centred=False):
+    detal_phi = 2 * np.pi / loop_number
+    total_number = np.einsum("i->", loop_number)
+
+    if centred:
+        loc = np.zeros([2, total_number + 1], dtype=np.float64)
+        loop_index = 1
+    else:
+        loc = np.zeros([2, total_number], dtype=np.float64)
+        loop_index = 0
+
+    for zmc, radius in enumerate(loop_radius):
+        current_number = loop_number[zmc]
+        phi = np.arange(0, current_number) * detal_phi[zmc]
+        loc_x = radius * np.cos(phi)
+        loc_y = radius * np.sin(phi)
+        loc[0, loop_index:loop_index + current_number] = loc_x
+        loc[1, loop_index:loop_index + current_number] = loc_y
+        loop_index = loop_index + current_number
+
+    phi = np.linspace(0, 2 * np.pi, 360 * 4)
+
+    # draw
+    circle = ax.fill(aperture * np.cos(phi), aperture * np.sin(phi), color='lightblue', zorder=0)
+    elements = ax.scatter(x=loc[0], y=loc[1], s=10, c='gray', zorder=1)
+
+    ax.set_aspect('equal', 'box')
+    ax.set_axis_off()
+    ax.grid(True)
 
     return ax
 
@@ -140,8 +212,15 @@ if __name__ == '__main__':
     number = 33
 
     fig = plt.figure(num=1, figsize=(8, 8), dpi=300)
+    loop = 20
+    loop_number = np.arange(1, loop) * 12
+    loop_radius = np.arange(1, loop) * 13
 
-    IFT_MaskArray(radius=radius, number=number, interval=interval, ax=fig.add_subplot(221))
+    total_number = np.einsum("i->", loop_number)
+
+    ax = IFT_LoopMaskArray(aperture=250, loop_number=loop_number, loop_radius=loop_radius, ax=fig.add_subplot(111),
+                           centred=True)
+    ax.set_title("Total number: " + str(total_number), fontsize=15, fontfamily="times new roman")
     # surf = IFT_3D_surface(theta=0, phi=0, AF=0, ax=fig.add_subplot(224, subplot_kw={'projection': '3d'}), title='')
     # fig.colorbar(surf, shrink=0.8, pad=0.1)
 
