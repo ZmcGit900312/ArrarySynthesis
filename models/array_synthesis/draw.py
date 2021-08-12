@@ -5,6 +5,7 @@
 # FileName : draw
 # Cooperation : 265
 
+import matplotlib.axes._axes as axes
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.patches import Circle
@@ -127,7 +128,16 @@ def IFT_MaskArray(radius, number, interval, ax):
     return ax
 
 
-def IFT_LoopMaskArray(aperture, loop_number, loop_radius, ax, centred=False):
+def IFT_LoopMaskArray(aperture, loop_number: np.array, loop_radius: np.array, ax: axes.Axes, centred=False):
+    """
+    Draw circular array on the circular aperture face
+    :param aperture: the radius of the array
+    :param loop_number: number of each loop
+    :param loop_radius: radius of each loop
+    :param ax: handle of subplot
+    :param centred: the centre whether has the element for True or False
+    :return:
+    """
     detal_phi = 2 * np.pi / loop_number
     total_number = np.einsum("i->", loop_number)
 
